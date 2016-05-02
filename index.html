@@ -1,0 +1,168 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>C3 by wangfakang</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <script src="javascripts/scale.fix.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1 class="header">C3</h1>
+        <p class="header">c 函数返回值的陷阱</p>
+
+        <ul>
+          <li class="download"><a class="buttons" href="https://github.com/wangfakang/c3/zipball/master">Download ZIP</a></li>
+          <li class="download"><a class="buttons" href="https://github.com/wangfakang/c3/tarball/master">Download TAR</a></li>
+          <li><a class="buttons github" href="https://github.com/wangfakang/c3">View On GitHub</a></li>
+        </ul>
+
+        <p class="header">This project is maintained by <a class="header name" href="https://github.com/wangfakang">wangfakang</a></p>
+
+
+      </header>
+      <section>
+        <p>简单解析c语言的一个坑:</p>
+
+<p>先看看下面代码的输出结果：</p>
+
+<div class="highlight highlight-source-c"><pre>#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>stdio.h<span class="pl-pds">&gt;</span></span>
+
+#<span class="pl-k">include</span> <span class="pl-s"><span class="pl-pds">&lt;</span>stdio.h<span class="pl-pds">&gt;</span></span>
+
+<span class="pl-k">int</span> <span class="pl-en">funx</span>()
+{
+    <span class="pl-k">int</span> a = <span class="pl-c1">9</span>;
+    <span class="pl-k">int</span> b = <span class="pl-c1">7</span>;
+    <span class="pl-k">int</span> c = <span class="pl-c1">0</span>;
+
+    c = a + b;
+}
+
+
+<span class="pl-k">int</span> <span class="pl-en">main</span>()
+{
+    <span class="pl-k">int</span> c = <span class="pl-c1">funx</span>();
+
+    <span class="pl-c1">printf</span>(<span class="pl-s"><span class="pl-pds">"</span><span class="pl-c1">%d</span><span class="pl-cce">\n</span><span class="pl-pds">"</span></span>, c);
+
+}
+</pre></div>
+
+<p>结果是16，对就是16.而且这个数字不是随机的。如果你知道了原因就不用再往下看了。</p>
+
+<p>下面就来分析一下：
+其实这个16就是a+b的值，那么问什么么恩？下面就来看看相应的汇编：</p>
+
+<div class="highlight highlight-source-c"><pre>        .file   <span class="pl-s"><span class="pl-pds">"</span>re.c<span class="pl-pds">"</span></span>
+        .text
+.globl funx
+        .type   funx, @function
+funx:
+.LFB0:
+        .cfi_startproc
+        pushq   %rbp
+        .cfi_def_cfa_offset <span class="pl-c1">16</span>
+        .cfi_offset <span class="pl-c1">6</span>, -<span class="pl-c1">16</span>
+        movq    %rsp, %rbp
+        .cfi_def_cfa_register <span class="pl-c1">6</span>
+        movl    $<span class="pl-c1">9</span>, -<span class="pl-c1">12</span>(%rbp)    <span class="pl-c">//把立即数9放到寄存器相对偏移量12的位置[即a的地址里面]</span>
+        movl    $<span class="pl-c1">7</span>, -<span class="pl-c1">8</span>(%rbp)     <span class="pl-c">//把立即数7放到寄存器相对偏移量8的位置[即b的地址里面]</span>
+        movl    $<span class="pl-c1">0</span>, -<span class="pl-c1">4</span>(%rbp)     <span class="pl-c">//把立即数0放到寄存器相对偏移量4的位置[即c的地址里面]</span>
+        movl    -<span class="pl-c1">8</span>(%rbp), %eax   <span class="pl-c">//把b的值取出来放到eax中</span>
+        movl    -<span class="pl-c1">12</span>(%rbp), %edx  <span class="pl-c">//把a的值取出来放到edx中</span>
+        <span class="pl-en">leal</span>    (%rdx,%rax), %eax <span class="pl-c">//把rdx加上rax的值放到eax中</span>
+        movl    %eax, -4(%rbp)    <span class="pl-c">//把eax的值给c  最终eax就是a+b等于16</span>
+        leave
+        .cfi_def_cfa 7, 8
+        ret
+        .cfi_endproc
+.LFE0:
+        .size   funx, .-funx
+        .section        .rodata
+.LC0:
+        .string "%d\n"
+        .text
+.globl main
+        .type   main, @function
+main:
+.LFB1:
+        .cfi_startproc
+        pushq   %rbp
+        .cfi_def_cfa_offset 16
+        .cfi_offset 6, -16
+        movq    %rsp, %rbp
+        .cfi_def_cfa_register 6
+        subq    $16, %rsp
+        movl    $0, %eax
+        call    funx     <span class="pl-c">//调用funx函数</span>
+        movl    %eax, -4(%rbp)  <span class="pl-c">//这个eax就是函数funx的返回值给c</span>
+        movl    $.LC0, %eax
+        movl    -4(%rbp), %edx
+        movl    %edx, %esi
+        movq    %rax, %rdi
+        movl    $0, %eax
+        call    printf
+        leave
+        .cfi_def_cfa 7, 8
+        ret
+        .cfi_endproc
+.LFE1:
+        .size   main, .-main
+        .ident  "GCC: (GNU) 4.4.6 20110731 (Red Hat <span class="pl-c1">4.4.6</span>-<span class="pl-c1">3</span>)"
+        .section        .note.GNU-stack,"",@progbits
+</pre></div>
+
+<p>上面的汇编代码的第13到19行就是该问题的关键。还有就是第42到43行。<br>
+简单的看了上面汇编代码的解析，应该就知道原因了。<br>
+其实在c语言中函数的返回值是放在eax寄存器中的。[当然有的64位的也会把高32位放在edx，
+低32位放在eax中]。    </p>
+
+<p>虽然上面的c语言代码写的很不规范，一眼就看出来不对，但是有时候一个函数的逻辑比较返回值比较多
+而有的时候就会由于逻辑的问题最终一种情况没有return的逻辑。而调用者又使用该返回值来做后面的判
+断是很容易出问题的。     </p>
+
+<h1>
+<a id="communite--" class="anchor" href="#communite--" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Communite  </h1>
+
+<p>在使用中有任何问题，欢迎反馈给我，可以用以下联系方式跟我交流</p>
+
+<ul>
+<li>邮件(1031379296#qq.com, 把#换成@)</li>
+<li>QQ: 1031379296</li>
+<li>weibo: <a href="http://weibo.com/fakangwang">@王发康</a>
+</li>
+</ul>
+
+<h1>
+<a id="thx" class="anchor" href="#thx" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Thx</h1>
+
+<ul>
+<li>chunshengsterATgmail.com</li>
+</ul>
+
+<h1>
+<a id="author" class="anchor" href="#author" aria-hidden="true"><span aria-hidden="true" class="octicon octicon-link"></span></a>Author</h1>
+
+<ul>
+<li>Linux\nginx\golang\c\c++爱好者</li>
+<li>欢迎一起交流  一起学习# </li>
+<li>Others say good and Others good</li>
+</ul>
+      </section>
+      <footer>
+        <p><small>Hosted on <a href="https://pages.github.com">GitHub Pages</a> using the Dinky theme</small></p>
+      </footer>
+    </div>
+    <!--[if !IE]><script>fixScale(document);</script><![endif]-->
+		
+  </body>
+</html>
